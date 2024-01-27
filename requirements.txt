@@ -1,0 +1,7 @@
+socket
+threading
+typing
+secrets
+tkinter
+hashlib
+re
