@@ -134,7 +134,6 @@ class ChatServer:
                 client.send('\nPassword incorrect'.encode('utf-8'))
                 return False
         except RecursionError: # Catch recursion errors and blacklist user from accessing any rooms
-            
             client.send(f'\nRate limit exceeded, you are now blacklisted\n'.encode('utf-8'))
             print(f'\n(Blacklist) Unusual traffic coming from client: {client}')
             self.blacklisted(client)
