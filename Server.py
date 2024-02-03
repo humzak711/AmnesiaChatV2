@@ -24,39 +24,59 @@ class ChatServer:
         self.rooms: Dict[str, List[Tuple[socket.socket, str]]] = {} # stores rooms clients and their nicknames - room_key: [(client,nickname)]
         self.room_passwords : Dict[str,str] = {} # stores hashed passwords for rooms - room_key: password
     
+    # Function to blacklist clients for causing recursion errors
+    def blacklisted(self, client:socket.socket) -> None:
+        '''Blacklists clients for causing recursion errors'''
+
+        while True:
+            try:
+                client.recv(self.MESSAGE_BYTES).decode('utf-8')
+                client.send('\nYou are currently blacklisted for sending an unusual amount of requests'.encode('utf-8'))
+
+            except:
+                # In case the client disconnects
+                print(f'Client disconnected {client}')
+                break
+
+
     # Function for users to set their nickname
     def enter_nickname(self, client: socket.socket, room_key: Optional[str] = None) -> str:
         ''' Function to get a unique nickname from the client using recursion '''
+        
+        try:
+            # Ensure the client's name is safe
+            MAX_NICKNAME_LEN: int = 16
+            MIN_NICKNAME_LEN: int = 1
 
-        # Ensure the client's name is safe
-        MAX_NICKNAME_LEN: int = 16
-        MIN_NICKNAME_LEN: int = 1
+            # Get the client's nickname
+            client.send('Enter your nickname (nickname must be between 1-16 characters and cannot contain spaces): '.encode('utf-8'))
+            nickname: str = client.recv(self.MESSAGE_BYTES).decode('utf-8')  # Receive the client's nickname decoded from bytes
+            nickname: str = nickname.strip()  # Remove leading and trailing whitespaces
 
-        # Get the client's nickname
-        client.send('Enter your nickname (nickname must be between 1-16 characters and cannot contain spaces): '.encode('utf-8'))
-        nickname: str = client.recv(self.MESSAGE_BYTES).decode('utf-8')  # Receive the client's nickname decoded from bytes
-        nickname: str = nickname.strip()  # Remove leading and trailing whitespaces
+            # Input validation
+            if nickname == '' or ' ' in nickname or len(nickname) < MIN_NICKNAME_LEN or len(nickname) > MAX_NICKNAME_LEN:
+                client.send("\nERROR: Please enter a valid nickname between 1-16 characters with no spaces\n ".encode('utf-8'))
+                return self.enter_nickname(client)
 
-        # Input validation
-        if nickname == '' or ' ' in nickname or len(nickname) < MIN_NICKNAME_LEN or len(nickname) > MAX_NICKNAME_LEN:
-            client.send("\nERROR: Please enter a valid nickname between 1-16 characters with no spaces\n ".encode('utf-8'))
-            return self.enter_nickname(client)
+            nickname_taken: int = 0  # Flag to check if the nickname is already taken
 
-        nickname_taken: int = 0  # Flag to check if the nickname is already taken
+            # If room_key flag is set, then check if nickname is already in the room
+            if room_key:
+                # Check if the nickname is already in use
+                for room_clients in self.rooms[room_key]:
+                    if room_clients[1].strip() == nickname:
+                        client.send(f"\nERROR: Nickname '{nickname}' is already in use, please enter a different nickname\n ".encode('utf-8'))
+                        nickname_taken += 1 # set flag to 1 if the nickname is already taken
+                        return self.enter_nickname(client, room_key=room_key)
 
-        # If room_key flag is set, then check if nickname is already in the room
-        if room_key:
-            # Check if the nickname is already in use
-            for room_clients in self.rooms[room_key]:
-                if room_clients[1].strip() == nickname:
-                    client.send(f"\nERROR: Nickname '{nickname}' is already in use, please enter a different nickname\n ".encode('utf-8'))
-                    nickname_taken += 1 # set flag to 1 if the nickname is already taken
-                    return self.enter_nickname(client, room_key=room_key)
-
-        # If the nickname is valid
-        if nickname_taken == 0: # If nickname is 0 the nickname is not taken
-            client.send(f'\nYour nickname is {nickname}'.encode('utf-8'))  # Send the nickname to the client
-            return nickname
+            # If the nickname is valid
+            if nickname_taken == 0: # If nickname is 0 the nickname is not taken
+                client.send(f'\nYour nickname is {nickname}'.encode('utf-8'))  # Send the nickname to the client
+                return nickname
+        except RecursionError: # Catch recursion errors and blacklist user from accessing any rooms
+            client.send(f'\nRate limit exceeded, you are now blacklisted\n'.encode('utf-8'))
+            print(f'\n(Blacklist) Unusual traffic coming from client: {client}')
+            self.blacklisted(client)
     
     # Function which uses recursion to create a new room key
     def generate_room_key(self) -> str:
@@ -71,94 +91,112 @@ class ChatServer:
     def create_room_password(self, client:socket.socket, room_key:str) -> None:
         ''' Function to allow user to create a password for their room upon creation'''
         
-        # create password validation mechanism
-        password_validator: Pattern = r'(?=[A-Za-z-_@=+!?.,£$%^*/|()]*\d)(?=[A-Z-_@=+!?.,£$%^*/|()\d]*[a-z])(?=[a-z-_@=+!?.,£$%^*/|()\d]*[A-Z])[A-Za-z\d@=+!?.,£$%^*/|()_-]{8,20}$'
+        try:
+            # create password validation mechanism
+            password_validator: Pattern = r'(?=[A-Za-z-_@=+!?.,£$%^*/|()]*\d)(?=[A-Z-_@=+!?.,£$%^*/|()\d]*[a-z])(?=[a-z-_@=+!?.,£$%^*/|()\d]*[A-Z])[A-Za-z\d@=+!?.,£$%^*/|()_-]{8,20}$'
         
-        # get the password from the client
-        client.send('\nCreate a password for your room\nThe password must be 8-20 characters and contain at least:\nOne number, one capital letter, one lowercase letter and no spaces.\nSpecial characters allowed: @=+!?.,£$%^*/|()_-: '.encode('utf-8'))
-        password: str = client.recv(self.MESSAGE_BYTES).decode('utf-8')
-        # allow client to re enter the password
-        client.send('\nRe-enter the password: '.encode('utf-8'))
-        re_password: str = client.recv(self.MESSAGE_BYTES).decode('utf-8')
+            # get the password from the client
+            client.send('\nCreate a password for your room\nThe password must be 8-20 characters and contain at least:\nOne number, one capital letter, one lowercase letter and no spaces.\nSpecial characters allowed: @=+!?.,£$%^*/|()_-: '.encode('utf-8'))
+            password: str = client.recv(self.MESSAGE_BYTES).decode('utf-8')
+            # allow client to re enter the password
+            client.send('\nRe-enter the password: '.encode('utf-8'))
+            re_password: str = client.recv(self.MESSAGE_BYTES).decode('utf-8')
         
-        # if password is valid then hash the password and store it 
-        if re.match(password_validator,password):
-            # check if re_password matches the password
-            if re_password == password:
-                hashed_password: str = hash_data(password) # hash the password for safe storage
-                self.room_passwords[room_key] = hashed_password
-                client.send('\nThe password for the room has successfully been set'.encode('utf-8'))
+            # if password is valid then hash the password and store it 
+            if re.match(password_validator,password):
+                # check if re_password matches the password
+                if re_password == password:
+                    hashed_password: str = hash_data(password) # hash the password for safe storage
+                    self.room_passwords[room_key] = hashed_password
+                    client.send('\nThe password for the room has successfully been set'.encode('utf-8'))
+                else:
+                    client.send('\nError: The re-entered password does not match the original password for the room'.encode('utf-8'))
+                    return self.create_room_password(client,room_key)
             else:
-                client.send('\nError: The re-entered password does not match the original password for the room'.encode('utf-8'))
+                client.send("\nError: Password must be 8-20 characters and contain at least:\nOne number, one capital letter, one lowercase letter and no spaces.\nSpecial characters allowed: @=+!?.,£$%^*/|()_-".encode('utf-8'))
                 return self.create_room_password(client,room_key)
-        else:
-            client.send("\nError: Password must be 8-20 characters and contain at least:\nOne number, one capital letter, one lowercase letter and no spaces.\nSpecial characters allowed: @=+!?.,£$%^*/|()_-".encode('utf-8'))
-            return self.create_room_password(client,room_key)
+        except RecursionError: # Catch recursion errors and blacklist user from accessing any rooms
+            client.send(f'\nRate limit exceeded, you are now blacklisted\n'.encode('utf-8'))
+            print(f'\n(Blacklist) Unusual traffic coming from client: {client}')
+            self.blacklisted(client)
     
     # Function to ensure user must enter the password to access a room
     def enter_room_password(self, client:socket.socket, room_key:str) -> bool:
         ''' Function to ensure user must enter the password to access a room '''
+        try:
+            client.send('\nEnter the password for the room: '.encode('utf-8'))
+            entered_password: str = client.recv(self.MESSAGE_BYTES).decode('utf-8')
+            hashed_password: str = self.room_passwords[room_key]
 
-        client.send('\nEnter the password for the room: '.encode('utf-8'))
-        entered_password: str = client.recv(self.MESSAGE_BYTES).decode('utf-8')
-        hashed_password: str = self.room_passwords[room_key]
-
-        if hash_data(entered_password) == hashed_password:
-            return True
-        else:
-            client.send('\nPassword incorrect'.encode('utf-8'))
-            return False
+            if hash_data(entered_password) == hashed_password:
+                return True
+            else:
+                client.send('\nPassword incorrect'.encode('utf-8'))
+                return False
+        except RecursionError: # Catch recursion errors and blacklist user from accessing any rooms
+            
+            client.send(f'\nRate limit exceeded, you are now blacklisted\n'.encode('utf-8'))
+            print(f'\n(Blacklist) Unusual traffic coming from client: {client}')
+            self.blacklisted(client)
 
     # Function to allow user to join or create a room
-    def create_join_room(self, client: socket.socket) -> str:
-        ''' Recursive function to handle creating and joining rooms '''
+    def room_handler(self, client: socket.socket) -> str:
+        ''' Recursive function which acts as a full room handler to handle
+            creating and joining rooms, 
 
-        client.send('Enter 1 to join a room, Enter 2 to create a room: '.encode('utf-8'))
-        option: str = client.recv(self.MESSAGE_BYTES).decode('utf-8')
-        option: str = option.strip()
+            works by calling create and enter password functions and enters name functions '''
+        
+        try:
+            client.send('Enter 1 to join a room, Enter 2 to create a room: '.encode('utf-8'))
+            option: str = client.recv(self.MESSAGE_BYTES).decode('utf-8')
+            option: str = option.strip()
 
-        # Join a room
-        if option == '1':
-            # Get the entered room key from the client
-            client.send('Enter room key: '.encode('utf-8'))
-            room_key: str = client.recv(self.MESSAGE_BYTES).decode('utf-8')
-            room_key: str = room_key.strip()
+            # Join a room
+            if option == '1':
+                # Get the entered room key from the client
+                client.send('Enter room key: '.encode('utf-8'))
+                room_key: str = client.recv(self.MESSAGE_BYTES).decode('utf-8')
+                room_key: str = room_key.strip()
 
-            # Check if the room exists
-            if room_key in self.rooms.keys():
-                # Ensure user knows the password for the room
-                if self.enter_room_password(client, room_key):
-                    # Add client to the room
-                    nickname: str = self.enter_nickname(client, room_key=room_key)
-                    self.rooms[room_key].append((client, nickname))
-                    self.clients[client] = (nickname, room_key)
+                # Check if the room exists
+                if room_key in self.rooms.keys():
+                    # Ensure user knows the password for the room
+                    if self.enter_room_password(client, room_key):
+                        # Add client to the room
+                        nickname: str = self.enter_nickname(client, room_key=room_key)
+                        self.rooms[room_key].append((client, nickname))
+                        self.clients[client] = (nickname, room_key)
                 
-                    client.send(f'\nYou have successfully joined the room\n'.encode('utf-8'))
-                    return nickname
+                        client.send(f'\nYou have successfully joined the room\n'.encode('utf-8'))
+                        return nickname
+                    else:
+                        return self.room_handler(client)
                 else:
-                    return self.create_join_room(client)
+                    client.send('\nERROR: Invalid room key '.encode('utf-8'))
+                    return self.room_handler(client) 
+
+            # Create a room
+            elif option == '2':
+                room_key: str = self.generate_room_key()
+
+                # Create a new room and add the client to it
+                nickname: str = self.enter_nickname(client)
+                self.create_room_password(client,room_key) # create password for the room
+                self.rooms[room_key] = [(client, nickname)]
+                self.clients[client] = (nickname, room_key)
+                client.send(f'\nYou have successfully created and joined the room '.encode('utf-8'))
+                client.send(
+                    f'\nYour room key is: {room_key}\nIf there are no users left in the room then the room will be deleted\n\n'.encode(
+                        'utf-8'))
+                return nickname
+
             else:
-                client.send('\nERROR: Invalid room key '.encode('utf-8'))
-                return self.create_join_room(client) 
-
-        # Create a room
-        elif option == '2':
-            room_key: str = self.generate_room_key()
-
-            # Create a new room and add the client to it
-            nickname: str = self.enter_nickname(client)
-            self.create_room_password(client,room_key) # create password for the room
-            self.rooms[room_key] = [(client, nickname)]
-            self.clients[client] = (nickname, room_key)
-            client.send(f'\nYou have successfully created and joined the room '.encode('utf-8'))
-            client.send(
-                f'\nYour room key is: {room_key}\nIf there are no users left in the room then the room will be deleted\n\n'.encode(
-                    'utf-8'))
-            return nickname
-
-        else:
-            client.send('\nERROR: Please input a valid option'.encode('utf-8'))
-        return self.create_join_room(client)
+                client.send('\nERROR: Please input a valid option'.encode('utf-8'))
+            return self.room_handler(client)
+        except RecursionError: # Catch recursion errors and blacklist user from accessing any rooms
+            client.send(f'\nRate limit exceeded, you are now blacklisted\n'.encode('utf-8'))
+            print(f'\n(Blacklist) Unusual traffic coming from client: {client}')
+            self.blacklisted(client)
 
     
     # Handle sending messages to the clients room
@@ -238,12 +276,16 @@ class ChatServer:
         try: 
             # Create or join a room for the client
             client.send(f'\nSuccessfully connected to the server\n'.encode('utf8'))
-            nickname: str = self.create_join_room(client)
+            nickname: str = self.room_handler(client)
 
             # Broadcast that the client has joined the chat
             print(f'\nConnected with {str(address)}, their nickname is: {nickname}')
             self.broadcast_message(client, f'{nickname} has joined the chat')
             self.handle_client(client)
+        except RecursionError: # Catch recursion errors and blacklist user from accessing any rooms
+            print(f'\n(Blacklist) Unusual traffic coming from client: {client} with IP address {address[0]} on port {address[1]}')
+            client.send(f'\nRate limit exceeded, you are now blacklisted\n'.encode('utf-8'))
+            self.blacklisted(client)
                 
         except Exception as e:
             print(f'\nError: exception occured {e}, clients information is - IP: {address[0]} port: {address[1]}')
