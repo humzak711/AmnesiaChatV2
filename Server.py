@@ -3,10 +3,11 @@ import threading
 from typing import Dict, Tuple, List, Optional, Pattern
 import secrets
 import re
-from modules.SecurityToolkit import hash_data
+from modules.KeyPair import message_private_key, message_public_key
+from modules.SecurityToolkit import hash_data, encrypt_message, decrypt_message
 
 
-class ChatServer:
+class ChatServer: 
     def __init__(self, host: str, port: int, bytesize: int=1024) -> None:
         # Configurations
         self.SERVER_HOST: str = host
@@ -277,7 +278,7 @@ class ChatServer:
 
         try: 
             # Create or join a room for the client
-            client.send(f'\nSuccessfully connected to the server\n'.encode('utf8'))
+            client.send((f'\nSuccessfully connected to the server\n'.encode('utf8')))
             nickname: str = self.room_handler(client)
 
             # Broadcast that the client has joined the chat
