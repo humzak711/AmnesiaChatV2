@@ -1,6 +1,5 @@
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import padding
-from modules.KeyPair import message_private_key, message_public_key
 import hashlib
 
 # Function to hash data
@@ -9,11 +8,11 @@ def hash_data(data: str) -> str:
     hashed_data: str = hashlib.sha256(data.encode()).hexdigest()
     return hashed_data
 
-
-def encrypt_message(message: bytes) -> bytes:
-    ''' Function to encrypt a message with bytes type '''
+# Function to encrypt messages
+def encrypt_message(message: str, message_public_key: bytes) -> bytes:
+    ''' Function to encode a message to UTF-8 then decrypt it'''
     cipher_text: bytes = message_public_key.encrypt(
-        message,
+        message.encode('utf-8'),
         padding.OAEP(
             mgf=padding.MGF1(algorithm=hashes.SHA256()),
             algorithm=hashes.SHA256(),
@@ -22,9 +21,9 @@ def encrypt_message(message: bytes) -> bytes:
     )
     return cipher_text
 
-
-def decrypt_message(cipher_text: bytes) -> bytes:
-    ''' Function to decrypt a message with bytes type '''
+# Function to decrypt messages
+def decrypt_message(cipher_text: bytes, message_private_key: bytes) -> str:
+    ''' Function to decrypt a  UTF-8 encoded string '''
     decrypted_text: bytes = message_private_key.decrypt(
         cipher_text,
         padding.OAEP(
@@ -32,5 +31,5 @@ def decrypt_message(cipher_text: bytes) -> bytes:
             algorithm=hashes.SHA256(),
             label=None
         )
-    ).decode()
-    return decrypted_text
+    )
+    return decrypted_text.decode('utf-8')
