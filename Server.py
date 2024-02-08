@@ -5,6 +5,7 @@ import secrets
 import re
 from modules.SecurityToolkit import hash_data
 
+
 class ChatServer:
     def __init__(self, host: str, port: int, bytesize: int=1024) -> None:
         # Configurations
@@ -18,11 +19,12 @@ class ChatServer:
         self.server: socket.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server.bind((self.SERVER_HOST, self.SERVER_PORT))
         self.server.listen()
-
+        
         # Dictionaries to store clients, rooms, and their information
         self.clients: Dict[socket.socket, Tuple[str, str]] = {} # stores clients nickname and room key - client: (nickname, room_key)
         self.rooms: Dict[str, List[Tuple[socket.socket, str]]] = {} # stores rooms clients and their nicknames - room_key: [(client,nickname)]
         self.room_passwords : Dict[str,str] = {} # stores hashed passwords for rooms - room_key: password
+    
     
     # Function to blacklist clients for causing recursion errors
     def blacklisted(self, client:socket.socket) -> None:
@@ -30,6 +32,7 @@ class ChatServer:
 
         while True:
             try:
+                # Client cannot interact with rooms or any functionality
                 client.recv(self.MESSAGE_BYTES).decode('utf-8')
                 client.send('\nYou are currently blacklisted for sending an unusual amount of requests'.encode('utf-8'))
 
@@ -142,8 +145,8 @@ class ChatServer:
     def room_handler(self, client: socket.socket) -> str:
         ''' Recursive function which acts as a full room handler to handle
             creating and joining rooms, 
-
-            works by calling create and enter password functions and enters name functions '''
+    
+            works by calling all functions associated to creating and joining rooms '''
         
         try:
             client.send('Enter 1 to join a room, Enter 2 to create a room: '.encode('utf-8'))
@@ -285,7 +288,6 @@ class ChatServer:
             print(f'\n(Blacklist) Unusual traffic coming from client: {client} with IP address {address[0]} on port {address[1]}')
             client.send(f'\nRate limit exceeded, you are now blacklisted\n'.encode('utf-8'))
             self.blacklisted(client)
-                
         except Exception as e:
             print(f'\nError: exception occured {e}, clients information is - IP: {address[0]} port: {address[1]}')
 
