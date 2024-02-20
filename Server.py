@@ -100,7 +100,7 @@ class ChatServer:
             password_validator: Pattern = r'(?=[A-Za-z-_@=+!?.,£$%^*/|()]*\d)(?=[A-Z-_@=+!?.,£$%^*/|()\d]*[a-z])(?=[a-z-_@=+!?.,£$%^*/|()\d]*[A-Z])[A-Za-z\d@=+!?.,£$%^*/|()_-]{8,20}$'
         
             # get the password from the client
-            client.send('\nCreate a password for your room\nThe password must be 8-20 characters and contain at least:\nOne number, one capital letter, one lowercase letter and no spaces.\nSpecial characters allowed: @=+!?.,£$%^*/|()_-: '.encode('utf-8'))
+            client.send('\nCreate a password for your room\nThe password must be 8-20 characters and contain at least:\nOne number, one capital letter, one lowercase letter and no spaces.\nSpecial characters allowed: @=+!?.,£$%^*/|()_- '.encode('utf-8'))
             password: str = client.recv(self.MESSAGE_BYTES).decode('utf-8')
             # allow client to re enter the password
             client.send('\nRe-enter the password: '.encode('utf-8'))
