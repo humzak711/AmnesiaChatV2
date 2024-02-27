@@ -5,7 +5,6 @@ import secrets
 import re
 from modules.SecurityToolkit import hash_data
 
-
 class ChatServer: 
     def __init__(self, host: str, port: int, bytesize: int=1024) -> None:
         # Configurations
