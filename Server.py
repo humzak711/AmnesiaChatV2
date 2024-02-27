@@ -3,8 +3,7 @@ import threading
 from typing import Dict, Tuple, List, Optional, Pattern
 import secrets
 import re
-from modules.KeyPair import message_private_key, message_public_key
-from modules.SecurityToolkit import hash_data, encrypt_message, decrypt_message
+from modules.SecurityToolkit import hash_data
 
 
 class ChatServer: 
