@@ -2,7 +2,6 @@ import socket
 import threading
 import tkinter as tk
 from tkinter import ttk, scrolledtext, Entry, Button
-from modules.SecurityToolkit import encrypt_message, decrypt_message
 
 # Message server details
 SERVER_HOST: str = '127.0.0.1'
